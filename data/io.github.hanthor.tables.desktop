@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Tables
+GenericName=Spreadsheet
+Comment=A GNOME spreadsheet
+Exec=tables
+Icon=io.github.hanthor.tables
+Terminal=false
+Type=Application
+Categories=GNOME;GTK;Office;Spreadsheet;
+StartupNotify=true

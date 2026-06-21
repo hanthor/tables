@@ -1,0 +1,16 @@
+#!@PYTHON@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import os
+import sys
+import signal
+
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+
+sys.path.insert(1, pkgdatadir)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+if __name__ == '__main__':
+    from tables import main
+    sys.exit(main.main(VERSION))
