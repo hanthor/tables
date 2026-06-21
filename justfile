@@ -85,5 +85,23 @@ verify: build
         echo "VERIFY: FAIL"; exit 1
     fi
 
+# Headless CSV round-trip test (tables #4): load a CSV through the engine and
+# assert the written-back CSV matches.
+csvtest: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    d="$HOME/.cache/tables-csvtest"; rm -rf "$d"; mkdir -p "$d"
+    printf 'name,qty,price\nApples,3,1.50\nPears,12,0.80\n' > "$d/in.csv"
+    flatpak run --env=PYTHONUNBUFFERED=1 --filesystem="$d" \
+        --env=TABLES_SELFTEST="$d/in.csv:$d/out.csv" {{app_id}} >"$d/log" 2>&1 &
+    pid=$!; sleep 6; kill "$pid" 2>/dev/null || true
+    echo "--- log ---"; cat "$d/log"
+    echo "--- out.csv ---"; cat "$d/out.csv" 2>/dev/null || echo "(no output)"
+    if [ -f "$d/out.csv" ] && diff -q "$d/in.csv" "$d/out.csv" >/dev/null; then
+        echo "CSVTEST: PASS (round-trip exact)"; rm -rf "$d"
+    else
+        echo "CSVTEST: FAIL"; rm -rf "$d"; exit 1
+    fi
+
 clean:
     rm -rf subprojects/suite-common "$HOME/.cache/tables-flatpak"
