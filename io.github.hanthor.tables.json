@@ -19,6 +19,17 @@
     ],
     "modules": [
         {
+            "name": "python3-deps",
+            "buildsystem": "simple",
+            "build-options": {
+                "build-args": [ "--share=network" ]
+            },
+            "build-commands": [
+                "pip3 install --prefix=${FLATPAK_DEST} --no-warn-script-location openpyxl python-calamine odfpy"
+            ],
+            "comment": "Network build is fine for the himachal pipeline; for Flathub these become vendored wheels (flatpak-pip-generator)."
+        },
+        {
             "name": "tables",
             "buildsystem": "meson",
             "sources": [

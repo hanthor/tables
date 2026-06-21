@@ -105,5 +105,32 @@ csvtest: build
         echo "CSVTEST: FAIL"; rm -rf "$d"; exit 1
     fi
 
+# Headless xlsx + ods round-trip test (tables #5, #6): csv -> xlsx -> csv and
+# csv -> ods -> csv must reproduce the original (integer data for exactness).
+fmttest: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export WAYLAND_DISPLAY="$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 -E '^wayland-[0-9]+$' || echo wayland-0)"
+    d="$HOME/.cache/tables-fmttest"; rm -rf "$d"; mkdir -p "$d"; : >"$d/log"
+    printf 'name,qty\nApples,3\nPears,12\n' > "$d/in.csv"
+    runsel() {
+        flatpak kill {{app_id}} 2>/dev/null || true; sleep 1
+        timeout 9 flatpak run --env=PYTHONUNBUFFERED=1 --filesystem="$d" \
+            --env=TABLES_SELFTEST="$1" {{app_id}} >>"$d/log" 2>&1 &
+        local p=$!; sleep 7; flatpak kill {{app_id}} 2>/dev/null || true; kill "$p" 2>/dev/null || true; sleep 1
+    }
+    runsel "$d/in.csv:$d/out.xlsx"
+    runsel "$d/out.xlsx:$d/rt_xlsx.csv"
+    runsel "$d/in.csv:$d/out.ods"
+    runsel "$d/out.ods:$d/rt_ods.csv"
+    echo "--- log ---"; cat "$d/log"
+    echo "--- rt_xlsx.csv ---"; cat "$d/rt_xlsx.csv" 2>/dev/null || echo "(none)"
+    echo "--- rt_ods.csv ---"; cat "$d/rt_ods.csv" 2>/dev/null || echo "(none)"
+    ok=1
+    diff -q "$d/in.csv" "$d/rt_xlsx.csv" >/dev/null 2>&1 || { echo "xlsx round-trip MISMATCH"; ok=0; }
+    diff -q "$d/in.csv" "$d/rt_ods.csv" >/dev/null 2>&1 || { echo "ods round-trip MISMATCH"; ok=0; }
+    if [ "$ok" = 1 ]; then echo "FMTTEST: PASS (xlsx + ods round-trip exact)"; rm -rf "$d"; else echo "FMTTEST: FAIL"; exit 1; fi
+
 clean:
     rm -rf subprojects/suite-common "$HOME/.cache/tables-flatpak"

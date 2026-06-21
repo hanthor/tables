@@ -23,7 +23,7 @@ configure_file(
 )
 
 install_data(
-  [ '__init__.py', 'main.py', 'window.py', 'engine.js' ],
+  [ '__init__.py', 'main.py', 'window.py', 'fileio.py', 'engine.js' ],
   install_dir: moduledir,
 )
 
