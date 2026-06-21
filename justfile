@@ -25,9 +25,11 @@ setup:
 build: setup
     #!/usr/bin/env bash
     set -euo pipefail
+    # org.flatpak.Builder is sandboxed: pin its cwd to this project and give it
+    # host fs access. Run from a path under $HOME (flatpaks get a private /tmp).
     state="$HOME/.cache/tables-flatpak"
     mkdir -p "$state"
-    flatpak run org.flatpak.Builder \
+    flatpak run --cwd="$PWD" --filesystem=host org.flatpak.Builder \
         --force-clean --user --install --install-deps-from=flathub \
         --state-dir="$state/state" \
         --repo="$state/repo" \
