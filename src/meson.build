@@ -23,6 +23,19 @@ configure_file(
 )
 
 install_data(
-  [ '__init__.py', 'main.py', 'window.py' ],
+  [ '__init__.py', 'main.py', 'window.py', 'engine.js' ],
   install_dir: moduledir,
+)
+
+# Vendored JS engines (MIT: jspreadsheet-ce, jsuites; GPL-3.0: hyperformula),
+# inlined into the webview at runtime. Fetched by `just vendor`.
+install_data(
+  [
+    'vendor/jsuites.js',
+    'vendor/jsuites.css',
+    'vendor/jspreadsheet.js',
+    'vendor/jspreadsheet.css',
+    'vendor/hyperformula.full.min.js',
+  ],
+  install_dir: moduledir / 'vendor',
 )

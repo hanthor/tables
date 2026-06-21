@@ -7,6 +7,21 @@ manifest := app_id + ".json"
 default:
     @just --list
 
+# Fetch vendored JS engines into src/vendor/ (commit the result; flatpak builds offline).
+vendor:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p src/vendor
+    base="https://cdn.jsdelivr.net/npm"
+    curl -fsSL "$base/jspreadsheet-ce@4/dist/index.js"            -o src/vendor/jspreadsheet.js
+    curl -fsSL "$base/jspreadsheet-ce@4/dist/jspreadsheet.css"    -o src/vendor/jspreadsheet.css
+    curl -fsSL "$base/jsuites@4/dist/jsuites.js"                  -o src/vendor/jsuites.js
+    curl -fsSL "$base/jsuites@4/dist/jsuites.css"                 -o src/vendor/jsuites.css
+    curl -fsSL "$base/hyperformula@3/dist/hyperformula.full.min.js" -o src/vendor/hyperformula.full.min.js
+    curl -fsSL "$base/jspreadsheet-ce@4/LICENSE" -o src/vendor/LICENSE.jspreadsheet-ce
+    curl -fsSL "$base/jsuites@4/LICENSE"         -o src/vendor/LICENSE.jsuites
+    echo "vendored:"; ls -la src/vendor
+
 # Fetch the suite-common subproject (offline-safe; flatpak build sandbox has no net).
 setup:
     #!/usr/bin/env bash
@@ -48,6 +63,23 @@ smoke: build
     sleep 6
     if kill -0 "$pid" 2>/dev/null; then echo "OK: still running"; kill "$pid" 2>/dev/null || true; else wait "$pid"; fi
     echo "--- log ---"; cat /tmp/tables-run.log || true
+
+# Build, launch on the session, and assert the JS engine loaded (via console logs).
+verify: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export WAYLAND_DISPLAY="$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 -E '^wayland-[0-9]+$' || echo wayland-0)"
+    log=$(mktemp)
+    timeout 8 flatpak run {{app_id}} >"$log" 2>&1 &
+    pid=$!; sleep 6
+    kill "$pid" 2>/dev/null || true
+    echo "--- console ---"; cat "$log"
+    if grep -q "engine ready" "$log" && grep -q "HyperFormula ready" "$log"; then
+        echo "VERIFY: PASS (Jspreadsheet + HyperFormula loaded)"
+    else
+        echo "VERIFY: FAIL"; exit 1
+    fi
 
 clean:
     rm -rf subprojects/suite-common "$HOME/.cache/tables-flatpak"
