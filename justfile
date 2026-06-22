@@ -1,7 +1,7 @@
 # Tables — build & run as a Flatpak using the org.flatpak.Builder flatpak.
 # Designed to run on the `himachal` build host (no system flatpak-builder needed).
 
-app_id := "io.github.hanthor.tables"
+app_id := "org.tunaos.tables"
 manifest := app_id + ".json"
 
 default:
