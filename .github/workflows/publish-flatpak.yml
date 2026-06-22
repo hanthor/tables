@@ -19,7 +19,7 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
-      - name: Setup subproject
+      - name: Setup suite-common subproject
         run: |
           mkdir -p subprojects
           git clone --depth 1 https://github.com/hanthor/suite-common.git subprojects/suite-common
@@ -41,7 +41,7 @@ jobs:
           retention-days: 1
 
   publish:
-    name: Publish to GHCR
+    name: Publish to GHCR + update index
     needs: build-oci
     runs-on: ubuntu-latest
     steps:
@@ -50,38 +50,39 @@ jobs:
         with:
           name: tables-oci
           path: tables.oci
-      - name: Push to GHCR
+      - name: Push OCI to GHCR
         run: |
-          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
-          skopeo copy oci:tables.oci docker://ghcr.io/${REPO}:latest
+          skopeo copy oci:tables.oci docker://ghcr.io/${{ github.repository_owner }}/tables:latest
+          TAG="${{ github.ref_name }}"
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            skopeo copy oci:tables.oci docker://ghcr.io/${REPO}:${{ github.ref_name }}
+            skopeo copy oci:tables.oci docker://ghcr.io/${{ github.repository_owner }}/tables:${TAG}
           fi
-      - name: Update gh-pages index
+      - name: Clone flatpak-index
         run: |
-          pip install requests
-          python3 -c "
-import json, os, subprocess
-repo = os.environ['GITHUB_REPOSITORY'].lower()
-owner, name = repo.split('/')
-# Create .flatpakrepo file
-content = f'''[Flatpak Repo]
-Title=TunaOS Flatpaks — Tables
-Url=oci+https://{owner}.github.io/{name}
-Homepage=https://github.com/{repo}
-Comment=TunaOS Flatpak repository for Tables
-Description=Spreadsheets for GNOME
-Icon=https://raw.githubusercontent.com/{repo}/main/data/icons/hicolor/scalable/apps/io.github.hanthor.tables.svg
-'''
-os.makedirs('pages', exist_ok=True)
-with open('pages/tables.flatpakrepo', 'w') as f:
-    f.write(content)
-print('Generated tables.flatpakrepo')
-"
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: pages
-          keep_files: true
+          git clone --depth 1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository_owner }}/flatpak-index.git index-repo
+      - name: Update index
+        run: |
+          mkdir -p index-repo/index/static
+          # Copy OCI to index
+          cp -r tables.oci/* index-repo/index/static/ 2>/dev/null || true
+          # Generate appstream data if available
+          echo "Updated tables OCI at $(date)" > index-repo/index/tables-version.txt
+      - name: Commit and push index
+        run: |
+          cd index-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to index"
+          else
+            git commit -m "chore: update tables Flatpak OCI [${{ github.ref_name }}]"
+            git push origin main
+          fi
+      - name: Trigger gh-pages deploy
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository_owner }}/flatpak-index/pages/builds"
