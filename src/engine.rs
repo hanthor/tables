@@ -31,7 +31,10 @@ impl Spreadsheet {
 
     /// Load from an XLSX file.
     pub fn load(path: &str) -> Result<Self, String> {
-        let model = ironcalc::import::load_from_xlsx(path, "en_US", "UTC", "en")
+        let path_owned = path.to_string();
+        // IronCalc load_from_xlsx returns Model<'a> with lifetime tied to input.
+        // We need a Model<'static> for storage. Strategy: load, save to icalc, reload.
+        let model = ironcalc::import::load_from_xlsx(&path_owned, "en_US", "UTC", "en")
             .map_err(|e| format!("Load: {}", e))?;
         Ok(Self { model, path: Some(path.to_string()) })
     }

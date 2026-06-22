@@ -82,7 +82,7 @@ impl TablesWindow {
                         let mut c = 0;
                         while let Some(entry) = w {
                             if c < COLS {
-                                if let Ok(e) = entry.downcast::<gtk::Entry>() {
+                                if let Ok(e) = entry.clone().downcast::<gtk::Entry>() {
                                     e.set_text(&data[r][c]);
                                 }
                             }
