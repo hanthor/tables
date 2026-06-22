@@ -10,13 +10,13 @@ const ROWS: usize = 100;
 const COLS: usize = 26;
 
 pub struct TablesWindow {
-    window: adw::ApplicationWindow,
+    window: libadwaita::ApplicationWindow,
     cells: std::cell::RefCell<Vec<Vec<String>>>,
 }
 
 impl TablesWindow {
-    pub fn new(app: &adw::Application) -> Self {
-        let window = adw::ApplicationWindow::new(app);
+    pub fn new(app: &libadwaita::Application) -> Self {
+        let window = libadwaita::ApplicationWindow::new(app);
         window.set_title(Some("Tables"));
         window.set_default_size(800, 600);
 
@@ -35,7 +35,7 @@ impl TablesWindow {
         }
         let cells = std::cell::RefCell::new(cells);
 
-        let header = adw::HeaderBar::new();
+        let header = libadwaita::HeaderBar::new();
         let open_btn = gtk::Button::with_label("Open");
         header.pack_start(&open_btn);
         let save_btn = gtk::Button::with_label("Save");

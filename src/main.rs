@@ -3,13 +3,13 @@
 
 use gtk4 as gtk;
 use gtk::prelude::*;
-use adw::prelude::*;
+use libadwaita::prelude::*;
 
 mod window;
 mod engine;
 
 fn main() {
-    let app = adw::Application::builder()
+    let app = libadwaita::Application::builder()
         .application_id("org.tunaos.tables")
         .build();
 
