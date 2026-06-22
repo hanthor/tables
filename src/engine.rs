@@ -1,49 +1,56 @@
-// engine.rs — In-memory spreadsheet engine.
+// engine.rs — Spreadsheet engine with calamine + rust_xlsxwriter.
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// Todo: Integrate IronCalc when API stabilizes (Model<'static>, CellValue Display).
+// Libraries per RFC suite-common#12: calamine (read), rust_xlsxwriter (write).
 
-/// Simple in-memory spreadsheet with formula evaluation placeholder.
+use calamine::{open_workbook_auto, Reader};
+use std::path::Path;
+
 pub struct Spreadsheet {
-    cells: Vec<Vec<String>>,
-    rows: usize,
-    cols: usize,
+    pub cells: Vec<Vec<String>>,
+    pub rows: usize,
+    pub cols: usize,
 }
 
 impl Spreadsheet {
     pub fn new(rows: usize, cols: usize) -> Self {
-        let cells = vec![vec![String::new(); cols]; rows];
-        Self { cells, rows, cols }
+        Self { cells: vec![vec![String::new(); cols]; rows], rows, cols }
     }
 
-    pub fn set_cell(&mut self, row: usize, col: usize, value: &str) {
-        if row < self.rows && col < self.cols {
-            self.cells[row][col] = value.to_string();
-        }
+    pub fn set(&mut self, r: usize, c: usize, v: &str) {
+        if r < self.rows && c < self.cols { self.cells[r][c] = v.to_string(); }
     }
 
-    pub fn get_cell(&self, row: usize, col: usize) -> &str {
-        if row < self.rows && col < self.cols {
-            &self.cells[row][col]
-        } else {
-            ""
-        }
-    }
-
-    pub fn to_grid(&self) -> Vec<Vec<String>> {
-        self.cells.clone()
-    }
-
-    pub fn dimensions(&self) -> (usize, usize) {
-        (self.rows, self.cols)
+    pub fn get(&self, r: usize, c: usize) -> &str {
+        if r < self.rows && c < self.cols { &self.cells[r][c] } else { "" }
     }
 }
 
-/// Read XLSX via calamine (crate added back as optional dependency).
-pub fn read_spreadsheet(path: &std::path::Path) -> Result<(Vec<Vec<String>>, usize, usize), String> {
-    Err("File I/O not yet implemented in native Rust build. Use Python version for now.".into())
+pub fn read_spreadsheet(path: &Path) -> Result<Spreadsheet, String> {
+    let mut wb = open_workbook_auto(path).map_err(|e| format!("Open: {}", e))?;
+    let name = wb.sheet_names().first().cloned().unwrap_or_default();
+    let range = wb.worksheet_range(&name).map_err(|e| format!("Read: {}", e))?;
+    let rows = range.rows().count();
+    let cols = range.rows().next().map(|r| r.len()).unwrap_or(0);
+    let mut s = Spreadsheet::new(rows.max(1), cols.max(1));
+    for (r, row) in range.rows().enumerate() {
+        for (c, cell) in row.iter().enumerate() {
+            s.set(r, c, &cell.to_string());
+        }
+    }
+    Ok(s)
 }
 
-pub fn write_spreadsheet(_path: &std::path::Path, _cells: &[Vec<String>]) -> Result<(), String> {
-    Err("File I/O not yet implemented in native Rust build. Use Python version for now.".into())
+pub fn write_spreadsheet(path: &Path, s: &Spreadsheet) -> Result<(), String> {
+    use rust_xlsxwriter::*;
+    let mut wb = Workbook::new();
+    let ws = wb.add_worksheet();
+    for r in 0..s.rows {
+        for c in 0..s.cols {
+            if !s.cells[r][c].is_empty() {
+                ws.write_string(r as u32, c as u16, &s.cells[r][c])
+                    .map_err(|e| format!("Write: {}", e))?;
+            }
+        }
+    }
+    wb.save(path).map_err(|e| format!("Save: {}", e))
 }
