@@ -52,6 +52,8 @@
       allowDeleteColumn: true,
       allowRenameColumn: true,
       allowManualInsertColumn: true,
+      // ── Clipboard ───────────────────────────────────────────
+      copyPaste: true,
       // ── Events ───────────────────────────────────────────────
       onchange: function () { post({ type: 'changed' }); },
       onselection: function (el2, x1, y1, x2, y2) { selection = [x1, y1, x2, y2]; }
@@ -124,6 +126,24 @@
           sheet.setColumnFormat(c, data);
         }
       }
+    } else if (name === 'setBorders') {
+      if (sheet && selection) {
+        var style = data || '1px solid #000';
+        for (var c = selection[0]; c <= selection[2]; c++) {
+          for (var r = selection[1]; r <= selection[3]; r++) {
+            var cell = cellName(c, r);
+            var current = sheet.getStyle(cell) || '';
+            sheet.setStyle(cell, current + 'border:' + style + ';');
+          }
+        }
+        post({ type: 'changed' });
+      }
+    } else if (name === 'setColumnType') {
+      if (sheet && data) {
+        var col = selection ? selection[0] : 0;
+        sheet.setColumnType(col, data.type || 'text', data.source || []);
+      }
+
     } else if (name === 'fillDown') {
       if (sheet) {
         var data = sheet.getData();

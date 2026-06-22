@@ -155,6 +155,12 @@ class TablesWindow(SuiteWindow):
         self.chart_combo.set_selected(0)
         self.chart_combo.connect('notify::selected', self._on_chart_type)
 
+        self.border_btn = Gtk.Button(label='Border')
+        self.border_btn.set_tooltip_text('Add borders to selected cells')
+        self.border_btn.update_property([Gtk.AccessibleProperty.LABEL], ['Borders'])
+        self.border_btn.connect('clicked',
+            lambda b: self.webview.send('setBorders', '1px solid #888'))
+
         self.freeze_combo = Gtk.DropDown.new_from_strings(
             ['Freeze', 'Freeze 1 col', 'Freeze 1 row', 'Freeze 2 cols'])
         self.freeze_combo.set_tooltip_text('Freeze panes')
@@ -171,6 +177,7 @@ class TablesWindow(SuiteWindow):
                           halign=Gtk.Align.CENTER, margin_top=4)
         data_bar.add_css_class('toolbar')
         data_bar.append(merge_btn)
+        data_bar.append(self.border_btn)
         data_bar.append(self.chart_combo)
         data_bar.append(self.freeze_combo)
         data_bar.append(self.number_combo)

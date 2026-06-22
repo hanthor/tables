@@ -252,6 +252,20 @@ class TestCharts:
             assert len(wb['Data']._charts) >= 1
 
 
+# ── Clipboard paste ──────────────────────────────────────────────────
+
+class TestClipboardPaste:
+    def test_paste_enabled_in_config(self):
+        """Verify Jspreadsheet copyPaste config option is set."""
+        import os
+        engine_js = os.path.join(os.path.dirname(__file__), '..', '..',
+                                 'src', 'engine.js')
+        if os.path.exists(engine_js):
+            content = open(engine_js).read()
+            assert 'copyPaste: true' in content, \
+                'expected copyPaste: true in engine.js config'
+
+
 # ── Cross-format ───────────────────────────────────────────────────────
 
 class TestCrossFormat:
