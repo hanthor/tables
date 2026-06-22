@@ -447,5 +447,23 @@ class TablesWindow(SuiteWindow):
 
     # ----- helpers ----------------------------------------------------------
 
+        def _on_freeze(self, dropdown, _pspec):
+        idx = dropdown.get_selected()
+        if idx == 0:  # Freeze (none)
+            self.webview.send('freezeColumns', 0)
+            self.webview.send('freezeRows', 0)
+        elif idx == 1:  # Freeze 1 col
+            self.webview.send('freezeColumns', 1)
+        elif idx == 2:  # Freeze 1 row
+            self.webview.send('freezeRows', 1)
+        elif idx == 3:  # Freeze 2 cols
+            self.webview.send('freezeColumns', 2)
+
+    def _on_number_format(self, dropdown, _pspec):
+        formats = [None, '$ #,##0.00', '0.00%', 'DD/MM/YYYY', None]
+        idx = dropdown.get_selected()
+        fmt = formats[idx] if idx < len(formats) else None
+        self.webview.send('setNumberFormat', fmt)
+
     def _toast(self, text):
         print('[tables]', text, flush=True)
