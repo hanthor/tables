@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup suite-common subproject
         run: |
-          mkdir -p subprojects
+          rm -rf subprojects/suite-common && mkdir -p subprojects
           git clone --depth 1 https://github.com/hanthor/suite-common.git subprojects/suite-common
       - name: Build Flatpak
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
