@@ -27,8 +27,12 @@ class TablesWindow(SuiteWindow):
         super().__init__(app_name='Tables', **kwargs)
         self._moduledir = os.path.dirname(__file__)
         self._save_path = None
-        self._sheet_name = 'Sheet 1'
         self._dirty = False
+        # The workbook: list of [name, rows]. The grid edits one at a time.
+        self.sheets = [['Sheet 1', []]]
+        self.active = 0
+        self._pending_active = None   # sheet to switch to after saving current
+        self._after_save = None       # callable to run once active sheet is captured
 
         self._selftest = os.environ.get('TABLES_SELFTEST')
         self._multitest = os.environ.get('TABLES_MULTITEST')
@@ -53,6 +57,26 @@ class TablesWindow(SuiteWindow):
         save_btn.connect('clicked', lambda *_: self.save_file())
         self.header_bar.pack_start(save_btn)
 
+        # Sheet switcher (workbook tabs live in Python; the grid shows one sheet).
+        self.sheet_dropdown = Gtk.DropDown.new_from_strings(['Sheet 1'])
+        self.sheet_dropdown.connect('notify::selected', self._on_sheet_selected)
+        self.header_bar.pack_start(self.sheet_dropdown)
+
+    def _refresh_sheet_dropdown(self):
+        names = Gtk.StringList.new([name for name, _ in self.sheets])
+        self.sheet_dropdown.handler_block_by_func(self._on_sheet_selected)
+        self.sheet_dropdown.set_model(names)
+        self.sheet_dropdown.set_selected(self.active)
+        self.sheet_dropdown.handler_unblock_by_func(self._on_sheet_selected)
+
+    def _on_sheet_selected(self, dropdown, _param):
+        idx = dropdown.get_selected()
+        if idx == self.active or idx >= len(self.sheets):
+            return
+        # Capture the current sheet, then switch.
+        self._pending_active = idx
+        self.webview.send('getData', None)
+
     def _build_html(self):
         vendor_dir = os.path.join(self._moduledir, 'vendor')
         with open(os.path.join(self._moduledir, 'engine.js'), encoding='utf-8') as fh:
@@ -74,11 +98,17 @@ class TablesWindow(SuiteWindow):
         elif kind == 'changed':
             self._dirty = True
         elif kind == 'data':
-            sheets = payload.get('sheets') or []
-            print('[tables] received sheets:', [s.get('name') for s in sheets], flush=True)
-            self._save_current(sheets)
-            if self._multitest:
-                self._verify_multitest()
+            # Capture the active sheet back into the workbook, then dispatch.
+            self.sheets[self.active][1] = self._trim(payload.get('data') or [])
+            if self._pending_active is not None:
+                self.active = self._pending_active
+                self._pending_active = None
+                self._refresh_sheet_dropdown()
+                self.webview.send('load', self.sheets[self.active][1])
+            elif self._after_save is not None:
+                callback = self._after_save
+                self._after_save = None
+                callback()
 
     # ----- file I/O ---------------------------------------------------------
 
@@ -106,17 +136,22 @@ class TablesWindow(SuiteWindow):
         except Exception as exc:  # noqa: BLE001
             self._toast(f'Could not open: {exc}')
             return
-        payload = []
+        self.sheets = []
         for name, rows in sheets:
             width = max((len(r) for r in rows), default=1)
             rect = [list(r) + [''] * (width - len(r)) for r in rows]
-            payload.append({'name': name or 'Sheet', 'data': rect})
+            self.sheets.append([name or 'Sheet', rect])
+        if not self.sheets:
+            self.sheets = [['Sheet 1', []]]
+        self.active = 0
         self._save_path = path
-        self.webview.send('load', payload)
+        self._refresh_sheet_dropdown()
+        self.webview.send('load', self.sheets[0][1])
         self._toast(f'Opened {os.path.basename(path)}')
 
     def save_file(self):
         if self._save_path:
+            self._after_save = self._write_all
             self.webview.send('getData', None)
             return
         dialog = Gtk.FileDialog(title='Save Spreadsheet')
@@ -129,16 +164,15 @@ class TablesWindow(SuiteWindow):
         except GLib.Error:
             return
         self._save_path = gfile.get_path()
+        self._after_save = self._write_all
         self.webview.send('getData', None)
 
-    def _save_current(self, sheets):
+    def _write_all(self):
         if not self._save_path:
             return
-        out = [(s.get('name') or 'Sheet', self._trim(s.get('data') or [])) for s in sheets]
-        if not out:
-            out = [('Sheet 1', [])]
         try:
-            fileio.write_spreadsheet(self._save_path, out)
+            fileio.write_spreadsheet(self._save_path,
+                                     [(name, rows) for name, rows in self.sheets])
         except Exception as exc:  # noqa: BLE001
             self._toast(f'Could not save: {exc}')
             return
@@ -166,6 +200,7 @@ class TablesWindow(SuiteWindow):
             in_path, _, out_path = self._selftest.partition(':')
             self._load_path(in_path)
             self._save_path = out_path
+            self._after_save = self._write_all
             GLib.timeout_add(600, self._selftest_pull)
         except Exception as exc:  # noqa: BLE001
             print('[tables] selftest error:', exc, flush=True)
@@ -182,13 +217,15 @@ class TablesWindow(SuiteWindow):
             self._mt_out = os.path.join(base, 'out.xlsx')
             sheets = [('Alpha', [['1', '2'], ['3', '4']]), ('Beta', [['5', '6']])]
             fileio.write_spreadsheet(inp, sheets)   # multi-sheet write
-            self._load_path(inp)                    # 2 sheets -> grid (tabs)
+            self._load_path(inp)                    # loads sheet 0, stores both
             self._save_path = self._mt_out
+            self._after_save = self._multitest_save_and_verify
             GLib.timeout_add(700, lambda: (self.webview.send('getData', None), False)[1])
         except Exception as exc:  # noqa: BLE001
             print('[tables] multitest error:', exc, flush=True)
 
-    def _verify_multitest(self):
+    def _multitest_save_and_verify(self):
+        self._write_all()   # writes all sheets (active updated, others preserved)
         try:
             back = fileio.read_spreadsheet(self._mt_out)
             names = [n for n, _ in back]

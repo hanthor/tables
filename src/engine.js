@@ -13,38 +13,22 @@
     catch (e) { console.log('bridge post failed: ' + e); }
   }
 
-  var instance = null;  // array of worksheet objects (tabs mode)
+  var sheet = null;  // single active worksheet; the workbook lives in Python
 
-  function worksheetArray() {
-    if (!instance) { return []; }
-    return Array.isArray(instance) ? instance : [instance];
-  }
-
-  function build(sheets) {
+  function build(rows) {
     var el = document.getElementById('grid');
     el.innerHTML = '';
-    if (!sheets || !sheets.length) { sheets = [{ name: 'Sheet 1', data: [['', '', '']] }]; }
-    var worksheets = sheets.map(function (s) {
-      var data = (s.data && s.data.length) ? s.data : [['', '', '']];
-      return { data: data, minDimensions: [12, 30], worksheetName: s.name || 'Sheet' };
-    });
-    instance = jspreadsheet(el, {
-      tabs: true,
+    if (!rows || !rows.length) { rows = [['', '', ''], ['', '', ''], ['', '', '']]; }
+    sheet = jspreadsheet(el, {
+      data: rows,
+      minDimensions: [12, 30],
       parseFormulas: true,
-      worksheets: worksheets,
       onchange: function () { post({ type: 'changed' }); }
     });
   }
 
-  function collect() {
-    return worksheetArray().map(function (ws, i) {
-      var name = (ws.options && ws.options.worksheetName) || ('Sheet ' + (i + 1));
-      return { name: name, data: ws.getData() };
-    });
-  }
-
   function init() {
-    build([{ name: 'Sheet 1', data: [['', '', ''], ['', '', ''], ['', '', '']] }]);
+    build([['', '', ''], ['', '', ''], ['', '', '']]);
 
     try {
       var hf = HyperFormula.buildFromArray(
@@ -65,7 +49,7 @@
       build(data);
       post({ type: 'changed' });
     } else if (name === 'getData') {
-      post({ type: 'data', sheets: collect() });
+      post({ type: 'data', data: sheet ? sheet.getData() : [] });
     }
   };
 
