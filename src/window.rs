@@ -1,6 +1,4 @@
 // window.rs — Tables: shared chrome + native cell grid.
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gtk4 as gtk;
 use gtk::prelude::*;
 
@@ -9,8 +7,6 @@ const COLS: usize = 26;
 
 pub struct TablesWindow {
     window: gtk::ApplicationWindow,
-    _grid: gtk::ListView,
-    model: gtk::gio::ListStore,
 }
 
 impl TablesWindow {
@@ -19,109 +15,51 @@ impl TablesWindow {
         win.set_title(Some("Tables"));
         win.set_default_size(900, 600);
 
-        // Shared chrome
         let header = suite_common::make_header_bar();
         let toolbar = suite_common::make_toolbar();
-        let formula_bar = gtk::Entry::new();
-        formula_bar.set_placeholder_text(Some("Formula…"));
+        let formula = gtk::Entry::new();
+        formula.set_placeholder_text(Some("Formula…"));
 
-        // ── Grid ──────────────────────────────────────────────
         let model = gtk::gio::ListStore::new(gtk::glib::Type::OBJECT);
-        for _ in 0..ROWS {
-            model.append(&gtk::glib::Object::new());
-        }
+        for _ in 0..ROWS { model.append(&gtk::glib::Object::new()); }
 
         let factory = gtk::SignalListItemFactory::new();
-        factory.connect_setup(move |_factory, item| {
+        factory.connect_setup(|_factory, item| {
             let row_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-            // Row header (col number)
-            let header_cell = gtk::Label::new(None);
-            header_cell.set_width_chars(4);
-            header_cell.add_css_class("dim-label");
-            row_box.append(&header_cell);
-            // Data cells
+            let h = gtk::Label::new(None); h.set_width_chars(4); h.add_css_class("dim-label");
+            row_box.append(&h);
             for _ in 0..COLS {
-                let cell = gtk::Entry::new();
-                cell.set_has_frame(false);
-                cell.set_width_chars(10);
-                cell.set_hexpand(true);
-                // Tab to next cell
-                let next = cell.clone();
-                cell.connect_activate(move |e| {
-                    if let Some(parent) = e.parent() {
-                        if let Some(sibling) = parent.next_sibling() {
-                            if let Ok(entry) = sibling.downcast::<gtk::Box>() {
-                                if let Some(first) = entry.first_child() {
-                                    first.grab_focus();
-                                }
-                            }
-                        }
-                    }
-                });
-                row_box.append(&cell);
+                let e = gtk::Entry::new(); e.set_has_frame(false); e.set_width_chars(10); e.set_hexpand(true);
+                row_box.append(&e);
             }
-            if let Some(list_item) = item.downcast_ref::<gtk::ListItem>() {
-                list_item.set_child(Some(&row_box));
+            if let Some(li) = item.downcast_ref::<gtk::ListItem>() { li.set_child(Some(&row_box)); }
+        });
+        factory.connect_bind(|_factory, item| {
+            if let Some(li) = item.downcast_ref::<gtk::ListItem>() {
+                let r = li.position() as usize;
+                if let Some(c) = li.child() { if let Ok(b) = c.downcast::<gtk::Box>() {
+                    if let Some(h) = b.first_child() { if let Ok(l) = h.downcast::<gtk::Label>() { l.set_label(&format!("{}", r + 1)); } }
+                    let mut w = b.first_child().and_then(|n| n.next_sibling());
+                    let mut col = 0;
+                    while let Some(e) = w {
+                        if col < COLS { if let Ok(entry) = e.downcast::<gtk::Entry>() {
+                            if r == 0 { entry.set_text(&(b'A' + col as u8).to_string()); } else { entry.set_text(""); }
+                        }}
+                        w = e.next_sibling(); col += 1;
+                    }
+                }}
             }
         });
+        let grid = gtk::ListView::new(Some(gtk::SingleSelection::new(Some(model))), Some(factory));
+        let scroll = gtk::ScrolledWindow::new(); scroll.set_child(Some(&grid)); scroll.set_vexpand(true);
 
-        factory.connect_bind(move |_factory, item| {
-            if let Some(list_item) = item.downcast_ref::<gtk::ListItem>() {
-                let row = list_item.position() as usize;
-                if let Some(child) = list_item.child() {
-                    if let Ok(row_box) = child.downcast::<gtk::Box>() {
-                        // Set row header
-                        if let Some(h) = row_box.first_child() {
-                            if let Ok(label) = h.downcast::<gtk::Label>() {
-                                label.set_label(&format!("{}", row + 1));
-                            }
-                        }
-                        // Set cell values (column headers in row 0)
-                        let mut w = row_box.first_child();
-                        // Skip row header
-                        w = w.and_then(|c| c.next_sibling());
-                        let mut col = 0;
-                        while let Some(entry) = w {
-                            if col < COLS {
-                                if let Ok(e) = entry.downcast::<gtk::Entry>() {
-                                    if row == 0 {
-                                        let col_name = std::char::from_u32(b'A' as u32 + col as u32).unwrap_or('?');
-                                        e.set_text(&col_name.to_string());
-                                    } else {
-                                        e.set_text("");
-                                    }
-                                }
-                            }
-                            w = entry.next_sibling();
-                            col += 1;
-                        }
-                    }
-                }
-            }
-        });
-
-        let grid = gtk::ListView::new(
-            Some(gtk::SingleSelection::new(Some(model.clone()))),
-            Some(factory),
-        );
-        let scroll = gtk::ScrolledWindow::new();
-        scroll.set_child(Some(&grid));
-        scroll.set_vexpand(true);
-
-        let main_box = gtk::Box::new(gtk::Orientation::Vertical, 2);
-        main_box.append(&toolbar);
-        main_box.append(&formula_bar);
-        main_box.append(&scroll);
+        let main = gtk::Box::new(gtk::Orientation::Vertical, 2);
+        main.append(&toolbar); main.append(&formula); main.append(&scroll);
 
         let container = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        container.append(&header);
-        container.append(&main_box);
-        win.set_child(Some(container));
-
-        Self { window: win, _grid: grid, model }
+        container.append(&header); container.append(&main);
+        win.set_child(Some(&container));
+        Self { window: win }
     }
-
-    pub fn present(&self) {
-        self.window.present();
-    }
+    pub fn present(&self) { self.window.present(); }
 }

@@ -1,8 +1,5 @@
 // main.rs — Tables spreadsheet, pure Rust + gtk4-rs + suite-common.
-// SPDX-License-Identifier: GPL-3.0-or-later
-
 use gtk4::prelude::*;
-
 mod window;
 
 fn main() {
