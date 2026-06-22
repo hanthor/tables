@@ -219,3 +219,8 @@ e2etest: build
     python3 tests/gui/test_tables_e2e.py "$d"; rc=$?
     flatpak kill {{app_id}} 2>/dev/null || true
     exit $rc
+
+# Lint Python source files (syntax check only).
+lint:
+    python3 -m py_compile src/main.py
+    python3 -m py_compile src/window.py

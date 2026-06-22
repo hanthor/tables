@@ -447,7 +447,7 @@ class TablesWindow(SuiteWindow):
 
     # ----- helpers ----------------------------------------------------------
 
-        def _on_freeze(self, dropdown, _pspec):
+    def _on_freeze(self, dropdown, _pspec):
         idx = dropdown.get_selected()
         if idx == 0:  # Freeze (none)
             self.webview.send('freezeColumns', 0)
