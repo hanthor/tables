@@ -52,7 +52,7 @@ impl TablesWindow {
         formula_bar.set_placeholder_text(Some("Formula…"));
 
         // Row list model
-        let list_model = gio::ListStore::new(glib::Type::OBJECT);
+        let list_model = gio::ListStore::new::<glib::Object>();
         for _ in 0..ROWS {
             list_model.append(&glib::Object::new());
         }
