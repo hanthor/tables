@@ -149,6 +149,12 @@ class TablesWindow(SuiteWindow):
         merge_btn.update_property([Gtk.AccessibleProperty.LABEL], ['Merge cells'])
         merge_btn.connect('clicked', lambda b: self.webview.send('mergeCells', None))
 
+        self.chart_combo = Gtk.DropDown.new_from_strings(
+            ['Chart', 'Bar Chart', 'Line Chart', 'Pie Chart'])
+        self.chart_combo.set_tooltip_text('Add chart on save')
+        self.chart_combo.set_selected(0)
+        self.chart_combo.connect('notify::selected', self._on_chart_type)
+
         self.freeze_combo = Gtk.DropDown.new_from_strings(
             ['Freeze', 'Freeze 1 col', 'Freeze 1 row', 'Freeze 2 cols'])
         self.freeze_combo.set_tooltip_text('Freeze panes')
@@ -165,6 +171,7 @@ class TablesWindow(SuiteWindow):
                           halign=Gtk.Align.CENTER, margin_top=4)
         data_bar.add_css_class('toolbar')
         data_bar.append(merge_btn)
+        data_bar.append(self.chart_combo)
         data_bar.append(self.freeze_combo)
         data_bar.append(self.number_combo)
         self.toolbar_view.add_top_bar(data_bar)
@@ -287,6 +294,22 @@ class TablesWindow(SuiteWindow):
         except Exception as exc:  # noqa: BLE001
             self._toast(f'Could not save: {exc}')
             return
+        # Post-process: add chart if selected in toolbar
+        chart_type = getattr(self, '_chart_type', None)
+        if chart_type and self._save_path.endswith('.xlsx'):
+            try:
+                from . import charts
+                ws = self.sheets[0][0] if self.sheets else 'Sheet 1'
+                rows = self.sheets[0][1] if self.sheets else []
+                if len(rows) > 1 and len(rows[0]) >= 1:
+                    charts.add_chart_to_file(
+                        self._save_path, ws,
+                        (1, 1, min(len(rows), 20), min(len(rows[0]), 5)),
+                        chart_type,
+                        f'{chart_type.title()} Chart', 'E10')
+                    print(f'[tables] chart: added {chart_type} chart', flush=True)
+            except Exception as exc:
+                print(f'[tables] chart error: {exc}', flush=True)
         self._dirty = False
         self._toast(f'Saved {os.path.basename(self._save_path)}')
 

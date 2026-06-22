@@ -209,6 +209,49 @@ class TestMultiSheet:
         assert result[0][1] == [['a']]
 
 
+# ── Charts ────────────────────────────────────────────────────────────
+
+class TestCharts:
+    def test_bar_chart_added(self):
+        """Verify a bar chart can be added to a saved XLSX."""
+        pytest.importorskip('openpyxl')
+        from openpyxl import load_workbook
+        from charts import add_chart_to_file
+        sheets = [('Data', [['Fruit', 'Qty'], ['Apples', 30], ['Pears', 20],
+                            ['Oranges', 15]], {})]
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, 'chart.xlsx')
+            fileio.write_spreadsheet(path, sheets)
+            add_chart_to_file(path, 'Data', (1, 1, 4, 2), 'bar', 'Test Chart', 'E2')
+            wb = load_workbook(path)
+            ws = wb['Data']
+            assert len(ws._charts) >= 1, 'expected at least 1 chart'
+
+    def test_line_chart(self):
+        pytest.importorskip('openpyxl')
+        from openpyxl import load_workbook
+        from charts import add_chart_to_file
+        sheets = [('Data', [['X', 'Y'], [1, 10], [2, 20], [3, 15]], {})]
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, 'chart.xlsx')
+            fileio.write_spreadsheet(path, sheets)
+            add_chart_to_file(path, 'Data', (1, 1, 4, 2), 'line', None, 'E2')
+            wb = load_workbook(path)
+            assert len(wb['Data']._charts) >= 1
+
+    def test_pie_chart(self):
+        pytest.importorskip('openpyxl')
+        from openpyxl import load_workbook
+        from charts import add_chart_to_file
+        sheets = [('Data', [['Category', 'Value'], ['A', 40], ['B', 60]], {})]
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, 'chart.xlsx')
+            fileio.write_spreadsheet(path, sheets)
+            add_chart_to_file(path, 'Data', (1, 1, 3, 2), 'pie', 'Pie Chart', 'E2')
+            wb = load_workbook(path)
+            assert len(wb['Data']._charts) >= 1
+
+
 # ── Cross-format ───────────────────────────────────────────────────────
 
 class TestCrossFormat:
