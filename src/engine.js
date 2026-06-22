@@ -13,7 +13,26 @@
     catch (e) { console.log('bridge post failed: ' + e); }
   }
 
-  var sheet = null;  // single active worksheet; the workbook lives in Python
+  var sheet = null;       // single active worksheet; the workbook lives in Python
+  var selection = null;   // [x1, y1, x2, y2] of the current selection
+
+  function cellName(x, y) {
+    var s = '', n = x;
+    do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+    return s + (y + 1);
+  }
+
+  function applyFormat(css) {
+    if (!sheet || !selection || !css) { return; }
+    var x1 = Math.min(selection[0], selection[2]), x2 = Math.max(selection[0], selection[2]);
+    var y1 = Math.min(selection[1], selection[3]), y2 = Math.max(selection[1], selection[3]);
+    var styles = {};
+    for (var x = x1; x <= x2; x++) {
+      for (var y = y1; y <= y2; y++) { styles[cellName(x, y)] = css; }
+    }
+    try { sheet.setStyle(styles); post({ type: 'changed' }); }
+    catch (e) { console.log('applyFormat failed: ' + e); }
+  }
 
   function build(rows) {
     var el = document.getElementById('grid');
@@ -23,7 +42,8 @@
       data: rows,
       minDimensions: [12, 30],
       parseFormulas: true,
-      onchange: function () { post({ type: 'changed' }); }
+      onchange: function () { post({ type: 'changed' }); },
+      onselection: function (el2, x1, y1, x2, y2) { selection = [x1, y1, x2, y2]; }
     });
   }
 
@@ -57,6 +77,8 @@
       if (sheet && data && Object.keys(data).length) {
         try { sheet.setStyle(data); } catch (e) { console.log('setStyle failed: ' + e); }
       }
+    } else if (name === 'format') {
+      applyFormat(data && data.css);
     } else if (name === 'getData') {
       post({ type: 'data', data: sheet ? sheet.getData() : [], styles: currentStyles() });
     }

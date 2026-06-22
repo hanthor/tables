@@ -35,6 +35,8 @@ def _cell_css(cell):
         parts.append('font-weight:bold')
     if font and font.italic:
         parts.append('font-style:italic')
+    if font and font.underline and font.underline != 'none':
+        parts.append('text-decoration:underline')
     if font and font.color and isinstance(getattr(font.color, 'rgb', None), str):
         rgb = font.color.rgb
         if rgb[-6:] not in ('000000',):
@@ -162,6 +164,8 @@ def _write_xlsx(path, sheets):
                 font_kw['bold'] = True
             if 'italic' in d.get('font-style', ''):
                 font_kw['italic'] = True
+            if 'underline' in d.get('text-decoration', ''):
+                font_kw['underline'] = 'single'
             if d.get('color'):
                 font_kw['color'] = _hex(d['color'])
             if font_kw:

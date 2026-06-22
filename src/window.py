@@ -44,6 +44,7 @@ class TablesWindow(SuiteWindow):
         page.set_title('Sheet 1')
 
         self._add_header_buttons()
+        self._add_format_toolbar()
         self.webview.load_app(self._build_html())
 
     # ----- UI ---------------------------------------------------------------
@@ -64,7 +65,7 @@ class TablesWindow(SuiteWindow):
         self.header_bar.pack_start(self.sheet_dropdown)
 
     def _refresh_sheet_dropdown(self):
-        names = Gtk.StringList.new([name for name, _ in self.sheets])
+        names = Gtk.StringList.new([sheet[0] for sheet in self.sheets])
         self.sheet_dropdown.handler_block_by_func(self._on_sheet_selected)
         self.sheet_dropdown.set_model(names)
         self.sheet_dropdown.set_selected(self.active)
@@ -77,6 +78,51 @@ class TablesWindow(SuiteWindow):
         # Capture the current sheet, then switch.
         self._pending_active = idx
         self.webview.send('getData', None)
+
+    def _add_format_toolbar(self):
+        # Letters idiom: a centered formatting toolbar that applies cell styles,
+        # with a responsive extended/more split (suite-common add_action_bar).
+        def toggle(icon, label, css_on, css_off):
+            btn = Gtk.ToggleButton(icon_name=icon)
+            btn.set_tooltip_text(label)
+            btn.update_property([Gtk.AccessibleProperty.LABEL], [label])
+            btn.connect('toggled', lambda b: self.webview.send(
+                'format', {'css': css_on if b.get_active() else css_off}))
+            return btn
+
+        bold = toggle('format-text-bold-symbolic', 'Bold',
+                      'font-weight:bold', 'font-weight:normal')
+        italic = toggle('format-text-italic-symbolic', 'Italic',
+                        'font-style:italic', 'font-style:normal')
+        underline = toggle('format-text-underline-symbolic', 'Underline',
+                           'text-decoration:underline', 'text-decoration:none')
+
+        # Alignment via a window action group (also drives the collapsed 'more' menu).
+        group = Gio.SimpleActionGroup()
+        for name, align in (('left', 'left'), ('center', 'center'), ('right', 'right')):
+            act = Gio.SimpleAction.new(f'align-{name}', None)
+            act.connect('activate',
+                        lambda a, p, al=align: self.webview.send('format', {'css': f'text-align:{al}'}))
+            group.add_action(act)
+        self.insert_action_group('fmt', group)
+
+        def align_btn(icon, label, action):
+            btn = Gtk.Button(icon_name=icon, action_name=action)
+            btn.set_tooltip_text(label)
+            btn.update_property([Gtk.AccessibleProperty.LABEL], [label])
+            return btn
+
+        left = align_btn('format-justify-left-symbolic', 'Align Left', 'fmt.align-left')
+        center = align_btn('format-justify-center-symbolic', 'Align Center', 'fmt.align-center')
+        right = align_btn('format-justify-right-symbolic', 'Align Right', 'fmt.align-right')
+
+        more = Gio.Menu()
+        more.append('Align Left', 'fmt.align-left')
+        more.append('Align Center', 'fmt.align-center')
+        more.append('Align Right', 'fmt.align-right')
+
+        self.add_action_bar(primary=[bold, italic, underline],
+                            extended=[left, center, right], more_menu=more)
 
     def _build_html(self):
         vendor_dir = os.path.join(self._moduledir, 'vendor')
