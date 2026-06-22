@@ -164,5 +164,20 @@ styletest: build
         echo "STYLETEST: PASS (bold + alignment round-trip xlsx)"; rm -rf "$d"
     else echo "STYLETEST: FAIL"; exit 1; fi
 
+# Dogtail GUI test (AT-SPI): launch the Flatpak and drive it from the host.
+# Requires dogtail + AT-SPI on the host session (Bluefin/GNOME has them).
+guitest: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export WAYLAND_DISPLAY="$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 -E '^wayland-[0-9]+$' || echo wayland-0)"
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    flatpak kill {{app_id}} 2>/dev/null || true; sleep 1
+    setsid flatpak run {{app_id}} >/tmp/tables-gui.log 2>&1 &
+    sleep 8
+    python3 tests/gui/test_tables.py; rc=$?
+    flatpak kill {{app_id}} 2>/dev/null || true
+    exit $rc
+
 clean:
     rm -rf subprojects/suite-common "$HOME/.cache/tables-flatpak"

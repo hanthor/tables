@@ -51,16 +51,21 @@ class TablesWindow(SuiteWindow):
 
     def _add_header_buttons(self):
         open_btn = Gtk.Button(label='Open')
+        open_btn.set_tooltip_text('Open')
+        open_btn.update_property([Gtk.AccessibleProperty.LABEL], ['Open'])
         open_btn.connect('clicked', lambda *_: self.open_file())
         self.header_bar.pack_start(open_btn)
 
         save_btn = Gtk.Button(icon_name='document-save-symbolic')
         save_btn.set_tooltip_text('Save')
+        save_btn.update_property([Gtk.AccessibleProperty.LABEL], ['Save'])
         save_btn.connect('clicked', lambda *_: self.save_file())
         self.header_bar.pack_start(save_btn)
 
         # Sheet switcher (workbook tabs live in Python; the grid shows one sheet).
         self.sheet_dropdown = Gtk.DropDown.new_from_strings(['Sheet 1'])
+        self.sheet_dropdown.set_tooltip_text('Sheet')
+        self.sheet_dropdown.update_property([Gtk.AccessibleProperty.LABEL], ['Sheet'])
         self.sheet_dropdown.connect('notify::selected', self._on_sheet_selected)
         self.header_bar.pack_start(self.sheet_dropdown)
 
