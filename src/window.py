@@ -31,6 +31,7 @@ class TablesWindow(SuiteWindow):
         self._dirty = False
 
         self._selftest = os.environ.get('TABLES_SELFTEST')
+        self._multitest = os.environ.get('TABLES_MULTITEST')
         print('[tables] selftest =', self._selftest, flush=True)
 
         self.webview = SuiteWebView(on_message=self._on_message)
@@ -68,11 +69,16 @@ class TablesWindow(SuiteWindow):
             print('[tables] engine ready:', payload.get('engine'), flush=True)
             if self._selftest:
                 self._run_selftest()
+            if self._multitest:
+                self._run_multitest()
         elif kind == 'changed':
             self._dirty = True
         elif kind == 'data':
-            print('[tables] received data rows:', len(payload.get('data') or []), flush=True)
-            self._save_current(payload.get('data') or [])
+            sheets = payload.get('sheets') or []
+            print('[tables] received sheets:', [s.get('name') for s in sheets], flush=True)
+            self._save_current(sheets)
+            if self._multitest:
+                self._verify_multitest()
 
     # ----- file I/O ---------------------------------------------------------
 
@@ -100,13 +106,13 @@ class TablesWindow(SuiteWindow):
         except Exception as exc:  # noqa: BLE001
             self._toast(f'Could not open: {exc}')
             return
-        name, rows = sheets[0]
-        self._sheet_name = name or 'Sheet 1'
-        # Pad to a rectangle so the grid ingests cleanly.
-        width = max((len(r) for r in rows), default=1)
-        rows = [list(r) + [''] * (width - len(r)) for r in rows]
+        payload = []
+        for name, rows in sheets:
+            width = max((len(r) for r in rows), default=1)
+            rect = [list(r) + [''] * (width - len(r)) for r in rows]
+            payload.append({'name': name or 'Sheet', 'data': rect})
         self._save_path = path
-        self.webview.send('load', rows)
+        self.webview.send('load', payload)
         self._toast(f'Opened {os.path.basename(path)}')
 
     def save_file(self):
@@ -125,12 +131,14 @@ class TablesWindow(SuiteWindow):
         self._save_path = gfile.get_path()
         self.webview.send('getData', None)
 
-    def _save_current(self, data):
+    def _save_current(self, sheets):
         if not self._save_path:
             return
-        grid = self._trim(data)
+        out = [(s.get('name') or 'Sheet', self._trim(s.get('data') or [])) for s in sheets]
+        if not out:
+            out = [('Sheet 1', [])]
         try:
-            fileio.write_spreadsheet(self._save_path, [(self._sheet_name, grid)])
+            fileio.write_spreadsheet(self._save_path, out)
         except Exception as exc:  # noqa: BLE001
             self._toast(f'Could not save: {exc}')
             return
@@ -166,6 +174,29 @@ class TablesWindow(SuiteWindow):
         print('[tables] selftest requesting data', flush=True)
         self.webview.send('getData', None)
         return False
+
+    def _run_multitest(self):
+        try:
+            base = self._multitest
+            inp = os.path.join(base, 'in.xlsx')
+            self._mt_out = os.path.join(base, 'out.xlsx')
+            sheets = [('Alpha', [['1', '2'], ['3', '4']]), ('Beta', [['5', '6']])]
+            fileio.write_spreadsheet(inp, sheets)   # multi-sheet write
+            self._load_path(inp)                    # 2 sheets -> grid (tabs)
+            self._save_path = self._mt_out
+            GLib.timeout_add(700, lambda: (self.webview.send('getData', None), False)[1])
+        except Exception as exc:  # noqa: BLE001
+            print('[tables] multitest error:', exc, flush=True)
+
+    def _verify_multitest(self):
+        try:
+            back = fileio.read_spreadsheet(self._mt_out)
+            names = [n for n, _ in back]
+            ok = names == ['Alpha', 'Beta']
+            print(f'[tables] multitest sheets={names} -> '
+                  f'{"PASS" if ok else "FAIL"}', flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print('[tables] multitest verify error:', exc, flush=True)
 
     # ----- helpers ----------------------------------------------------------
 

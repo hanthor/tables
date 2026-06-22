@@ -1,8 +1,9 @@
 /* engine.js — Tables spreadsheet engine: Jspreadsheet CE grid + HyperFormula.
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Loaded into the suite-common SuiteWebView. Talks to Python over the `bridge`
- * script-message channel: posts {type:...} up, receives via window.bridgeReceive.
+ * Multi-worksheet (tabs) mode. Talks to Python over the `bridge` channel:
+ * posts {type:...} up, receives via window.bridgeReceive.
+ * Protocol: load/getData carry a list of {name, data} sheets.
  */
 (function () {
   'use strict';
@@ -12,33 +13,44 @@
     catch (e) { console.log('bridge post failed: ' + e); }
   }
 
-  var sheet = null;
+  var instance = null;  // array of worksheet objects (tabs mode)
 
-  function currentData() {
-    return sheet ? sheet.getData() : [];
+  function worksheetArray() {
+    if (!instance) { return []; }
+    return Array.isArray(instance) ? instance : [instance];
+  }
+
+  function build(sheets) {
+    var el = document.getElementById('grid');
+    el.innerHTML = '';
+    if (!sheets || !sheets.length) { sheets = [{ name: 'Sheet 1', data: [['', '', '']] }]; }
+    var worksheets = sheets.map(function (s) {
+      var data = (s.data && s.data.length) ? s.data : [['', '', '']];
+      return { data: data, minDimensions: [12, 30], worksheetName: s.name || 'Sheet' };
+    });
+    instance = jspreadsheet(el, {
+      tabs: true,
+      parseFormulas: true,
+      worksheets: worksheets,
+      onchange: function () { post({ type: 'changed' }); }
+    });
+  }
+
+  function collect() {
+    return worksheetArray().map(function (ws, i) {
+      var name = (ws.options && ws.options.worksheetName) || ('Sheet ' + (i + 1));
+      return { name: name, data: ws.getData() };
+    });
   }
 
   function init() {
-    var container = document.getElementById('grid');
+    build([{ name: 'Sheet 1', data: [['', '', ''], ['', '', ''], ['', '', '']] }]);
 
-    sheet = jspreadsheet(container, {
-      data: [['', '', ''], ['', '', ''], ['', '', '']],
-      minDimensions: [12, 30],
-      parseFormulas: true,         // live formula recalc (=SUM, etc.)
-      columnSorting: true,
-      onchange: function () { post({ type: 'changed' }); },
-      onload: function () { post({ type: 'changed' }); }
-    });
-    window.__sheet = sheet;
-
-    // HyperFormula (GPL): Excel-compatible engine, used for verification now and
-    // as the export-time evaluator. Proves the dependency loads + computes.
     try {
       var hf = HyperFormula.buildFromArray(
         [[1], [2], ['=SUM(A1:A2)']], { licenseKey: 'gpl-v3' });
-      var v = hf.getCellValue({ sheet: 0, row: 2, col: 0 });
       window.__hf = hf;
-      console.log('HyperFormula ready: =SUM(A1:A2) = ' + v);
+      console.log('HyperFormula ready: =SUM(A1:A2) = ' + hf.getCellValue({ sheet: 0, row: 2, col: 0 }));
     } catch (e) {
       console.log('HyperFormula init error: ' + e);
     }
@@ -50,10 +62,10 @@
   // Python -> JS
   window.bridgeReceive = function (name, data) {
     if (name === 'load') {
-      if (sheet && data && data.length) { sheet.setData(data); }
+      build(data);
       post({ type: 'changed' });
     } else if (name === 'getData') {
-      post({ type: 'data', data: currentData() });
+      post({ type: 'data', sheets: collect() });
     }
   };
 

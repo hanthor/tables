@@ -132,5 +132,21 @@ fmttest: build
     diff -q "$d/in.csv" "$d/rt_ods.csv" >/dev/null 2>&1 || { echo "ods round-trip MISMATCH"; ok=0; }
     if [ "$ok" = 1 ]; then echo "FMTTEST: PASS (xlsx + ods round-trip exact)"; rm -rf "$d"; else echo "FMTTEST: FAIL"; exit 1; fi
 
+# Multi-sheet round-trip (tables #8): 2-sheet workbook -> grid (tabs) -> xlsx -> 2 sheets.
+multitest: build
+    #!/usr/bin/env bash
+    set -uo pipefail
+    flatpak kill {{app_id}} 2>/dev/null || true; sleep 1
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    export WAYLAND_DISPLAY="$(ls "$XDG_RUNTIME_DIR" 2>/dev/null | grep -m1 -E '^wayland-[0-9]+$' || echo wayland-0)"
+    d="$HOME/.cache/tables-multitest"; rm -rf "$d"; mkdir -p "$d"
+    timeout 9 flatpak run --env=PYTHONUNBUFFERED=1 --filesystem="$d" \
+        --env=TABLES_MULTITEST="$d" {{app_id}} >"$d/log" 2>&1 &
+    pid=$!; sleep 7; flatpak kill {{app_id}} 2>/dev/null; kill "$pid" 2>/dev/null || true
+    echo "--- log ---"; grep -E "multitest|sheets" "$d/log" || cat "$d/log"
+    if grep -q "multitest sheets=\['Alpha', 'Beta'\] -> PASS" "$d/log"; then
+        echo "MULTITEST: PASS (2 sheets survive grid round-trip)"; rm -rf "$d"
+    else echo "MULTITEST: FAIL"; exit 1; fi
+
 clean:
     rm -rf subprojects/suite-common "$HOME/.cache/tables-flatpak"
