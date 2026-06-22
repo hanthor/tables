@@ -25,7 +25,7 @@ Shares the [suite-common](https://github.com/hanthor/suite-common) scaffold with
 
 ```bash
 flatpak remote-add tuna-os oci+https://tuna-os.github.io/flatpak-index
-flatpak install tuna-os io.github.hanthor.tables
+flatpak install tuna-os org.tunaos.tables
 ```
 
 ## Build

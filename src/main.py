@@ -15,7 +15,7 @@ from .window import TablesWindow  # noqa: E402
 
 class TablesApplication(SuiteApplication):
     def __init__(self, version):
-        super().__init__(application_id='io.github.hanthor.tables',
+        super().__init__(application_id='org.tunaos.tables',
                          window_class=TablesWindow,
                          app_name='Tables',
                          version=version)
