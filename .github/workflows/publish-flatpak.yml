@@ -1,0 +1,87 @@
+name: Publish Flatpak
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-oci:
+    name: Build Flatpak OCI
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup subproject
+        run: |
+          mkdir -p subprojects
+          git clone --depth 1 https://github.com/hanthor/suite-common.git subprojects/suite-common
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: io.github.hanthor.tables.json
+          cache-key: flatpak-builder-${{ github.sha }}
+          build-bundle: false
+          upload-artifact: false
+      - name: Export OCI
+        run: |
+          flatpak build-bundle --oci --arch=x86_64 repo tables.oci io.github.hanthor.tables
+      - name: Upload OCI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tables-oci
+          path: tables.oci/
+          retention-days: 1
+
+  publish:
+    name: Publish to GHCR
+    needs: build-oci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: tables-oci
+          path: tables.oci
+      - name: Push to GHCR
+        run: |
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u "${{ github.actor }}" --password-stdin
+          skopeo copy oci:tables.oci docker://ghcr.io/${REPO}:latest
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            skopeo copy oci:tables.oci docker://ghcr.io/${REPO}:${{ github.ref_name }}
+          fi
+      - name: Update gh-pages index
+        run: |
+          pip install requests
+          python3 -c "
+import json, os, subprocess
+repo = os.environ['GITHUB_REPOSITORY'].lower()
+owner, name = repo.split('/')
+# Create .flatpakrepo file
+content = f'''[Flatpak Repo]
+Title=TunaOS Flatpaks — Tables
+Url=oci+https://{owner}.github.io/{name}
+Homepage=https://github.com/{repo}
+Comment=TunaOS Flatpak repository for Tables
+Description=Spreadsheets for GNOME
+Icon=https://raw.githubusercontent.com/{repo}/main/data/icons/hicolor/scalable/apps/io.github.hanthor.tables.svg
+'''
+os.makedirs('pages', exist_ok=True)
+with open('pages/tables.flatpakrepo', 'w') as f:
+    f.write(content)
+print('Generated tables.flatpakrepo')
+"
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
+          keep_files: true
