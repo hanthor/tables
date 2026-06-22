@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.hanthor.tables</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Tables</name>
+  <summary>Spreadsheet for the GNOME desktop</summary>
+  <description>
+    <p>
+      Tables is a modern, minimalist spreadsheet for the GNOME desktop, with
+      support for reading and writing XLSX, ODS and CSV. Part of a small office
+      suite alongside Letters and Decks.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.hanthor.tables.desktop</launchable>
+  <developer id="io.github.hanthor">
+    <name>hanthor</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <url type="homepage">https://github.com/hanthor/tables</url>
+  <url type="bugtracker">https://github.com/hanthor/tables/issues</url>
+  <releases>
+    <release version="0.1.0" date="2026-06-22"/>
+  </releases>
+</component>
