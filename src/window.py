@@ -9,6 +9,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
 from gi.repository import Gtk, Gio, Adw, GLib  # noqa: E402
+from suite_common.application import _setup_dark_mode
 from suite_common.window import SuiteWindow  # noqa: E402
 from suite_common.webview import SuiteWebView, build_document  # noqa: E402
 from . import fileio  # noqa: E402
@@ -42,6 +43,10 @@ class TablesWindow(SuiteWindow):
         print('[tables] selftest =', self._selftest, flush=True)
 
         self.webview = SuiteWebView(on_message=self._on_message)
+
+        # ── Dark mode ──────────────────────────────────────────────
+        self._dark = _setup_dark_mode(on_change=self._on_dark_changed)
+
         page = self.tab_view.append(self.webview)
         page.set_title('Sheet 1')
 
@@ -207,6 +212,8 @@ class TablesWindow(SuiteWindow):
                 self._run_formulatest()
             if self._guitest:
                 self._run_guitest_setup()
+            # Send initial dark mode preference
+            GLib.timeout_add(200, lambda: (self.webview.send('setDarkMode', self._dark), False)[1])
         elif kind == 'changed':
             self._dirty = True
         elif kind == 'formulaResult':
@@ -500,5 +507,8 @@ class TablesWindow(SuiteWindow):
         fmt = formats[idx] if idx < len(formats) else None
         self.webview.send('setNumberFormat', fmt)
 
-    def _toast(self, text):
+    def _on_dark_changed(self, is_dark):
+        """System dark mode toggled — push to JS engine."""
+        self._dark = is_dark
+        self.webview.send('setDarkMode', is_dark)
         print('[tables]', text, flush=True)

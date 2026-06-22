@@ -89,6 +89,24 @@
     if (name === 'load') {
       build(data);
       post({ type: 'changed' });
+    } else if (name === 'setDarkMode') {
+      // Apply dark mode to grid: swap jspreadsheet CSS + cell styling
+      var isDark = data === true || data === 'true';
+      var grid = document.getElementById('grid');
+      if (isDark) {
+        grid.style.background = '#1e1e1e';
+        grid.style.color = '#e0e0e0';
+        // Override jspreadsheet cell backgrounds
+        var style = document.createElement('style');
+        style.id = 'dark-mode-css';
+        style.textContent = '.jspreadsheet td { background:#2d2d2d !important; color:#e0e0e0 !important; } .jspreadsheet th { background:#3d3d3d !important; color:#e0e0e0 !important; } .jspreadsheet { border-color:#555 !important; }';
+        document.head.appendChild(style);
+      } else {
+        grid.style.background = '';
+        grid.style.color = '';
+        var old = document.getElementById('dark-mode-css');
+        if (old) old.remove();
+      }
     } else if (name === 'applyStyles') {
       if (sheet && data && Object.keys(data).length) {
         try { sheet.setStyle(data); } catch (e) { console.log('setStyle failed: ' + e); }
